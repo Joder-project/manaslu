@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 /**
  * 缓存策略
  */
-sealed interface CacheStrategy<ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> permits LRUCacheStrategy, NoCacheStrategy {
+public sealed interface CacheStrategy<ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> permits LRUCacheStrategy, NoCacheStrategy {
 
     /**
      * 添加或者更新数据
@@ -61,7 +61,7 @@ sealed class LRUCacheStrategy<ID extends Comparable<ID>, Entity extends Abstract
      * @param maxSize        最大数量
      * @param maxExpiredTime 最大超时时间(ms), -1 代表永久
      */
-    LRUCacheStrategy(int maxSize, int maxExpiredTime) {
+    LRUCacheStrategy(int maxSize, long maxExpiredTime) {
         var builder = CacheBuilder.newBuilder().maximumSize(maxSize);
         if (maxExpiredTime > 0) {
             builder.expireAfterAccess(maxExpiredTime, TimeUnit.MILLISECONDS);

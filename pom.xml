@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.0.3</version>
+        <version>3.1.3</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
@@ -17,6 +17,9 @@
     <description>manaslu-cache</description>
     <modules>
         <module>manaslu-core</module>
+        <module>manaslu-mongo</module>
+        <module>manaslu-mysql</module>
+        <module>manaslu-spring</module>
     </modules>
 
     <properties>
@@ -24,6 +27,28 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.manaslu</groupId>
+                <artifactId>manaslu-core</artifactId>
+                <version>1.0-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.manaslu</groupId>
+                <artifactId>manaslu-mongo</artifactId>
+                <version>1.0-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.manaslu</groupId>
+                <artifactId>manaslu-mysql</artifactId>
+                <version>1.0-SNAPSHOT</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <repositories>
         <repository>

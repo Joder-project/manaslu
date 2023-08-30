@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 /**
  * 增强方法
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.METHOD)
 public @interface Enhance {
 

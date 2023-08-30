@@ -1,5 +1,6 @@
 package org.manaslu.cache.core;
 
+import javax.annotation.Nonnull;
 import java.util.Optional;
 
 /**
@@ -9,9 +10,9 @@ public interface DbOperator<ID extends Comparable<ID>, Entity extends AbstractEn
 
     Optional<Entity> select(ID id);
 
-    void insert(Entity entity);
+    Optional<ID> insert(@Nonnull Entity entity);
 
-    void update(UpdateInfo<ID, Entity> entity);
+    void update(@Nonnull UpdateInfo<ID, Entity> entity);
 
     void delete(ID id);
 }

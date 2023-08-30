@@ -7,6 +7,7 @@ import java.lang.annotation.Target;
 
 /**
  * 实体标注
+ * 这个类字段名称不要乱动，详情查看EnhancedEntityProcessor
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
@@ -24,7 +25,7 @@ public @interface Entity {
     /**
      * 更新类型
      */
-    UpdateType updateType() default UpdateType.ALL;
+    UpdateType updateType() default UpdateType.PART;
 
     /**
      * 缓存策略
@@ -32,9 +33,29 @@ public @interface Entity {
     CacheStrategy cacheStrategy() default CacheStrategy.NO;
 
     /**
+     * 选择LRU配置时，最大数量
+     */
+    int lruMaxSize() default Integer.MAX_VALUE;
+
+    /**
+     * 选择LRU配置时，超时时间
+     */
+    long lruMaxExpireTime() default -1;
+
+    /**
      * 更新策略
      */
     DumpStrategy dumpStrategy() default DumpStrategy.IMMEDIATE;
+
+    /**
+     * 定时入库的间隔
+     */
+    long intervalScheduleTime() default 60000L;
+
+    /**
+     * 多少数量触发入库
+     */
+    int maxCountTriggerDump() default Integer.MAX_VALUE;
 
     enum UpdateType {
         /**

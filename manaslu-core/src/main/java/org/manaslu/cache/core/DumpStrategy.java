@@ -6,7 +6,7 @@ import org.manaslu.cache.core.exception.ManasluException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.StampedLock;
@@ -14,7 +14,7 @@ import java.util.concurrent.locks.StampedLock;
 /**
  * 存储策略
  */
-sealed interface DumpStrategy<ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> permits AbstractDumpStrategy {
+public sealed interface DumpStrategy<ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> permits AbstractDumpStrategy, NoDumpStrategy {
 
     void update(UpdateInfo<ID, Entity> info);
 
@@ -25,12 +25,43 @@ sealed interface DumpStrategy<ID extends Comparable<ID>, Entity extends Abstract
 
     Optional<Entity> select(ID id);
 
-    void insert(Entity entity);
+    Optional<ID> insert(Entity entity);
 
     /**
      * 删除数据库数据，同时移除本次所有更新
      */
     void delete(ID id);
+}
+
+/**
+ * 不采用存储
+ */
+final class NoDumpStrategy<ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> implements DumpStrategy<ID, Entity> {
+
+    @Override
+    public void update(UpdateInfo<ID, Entity> info) {
+
+    }
+
+    @Override
+    public void flush(ID id) {
+
+    }
+
+    @Override
+    public Optional<Entity> select(ID id) {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<ID> insert(Entity entity) {
+        return Optional.empty();
+    }
+
+    @Override
+    public void delete(ID id) {
+
+    }
 }
 
 abstract sealed class AbstractDumpStrategy<ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> implements DumpStrategy<ID, Entity>
@@ -48,14 +79,15 @@ abstract sealed class AbstractDumpStrategy<ID extends Comparable<ID>, Entity ext
     }
 
     @Override
-    public void insert(Entity entity) {
-        dbOperator.insert(entity);
+    public Optional<ID> insert(Entity entity) {
+        return dbOperator.insert(entity);
     }
 }
 
 /**
  * 立即存储
  */
+@Slf4j
 final class ImmediateDumpStrategy<ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> extends AbstractDumpStrategy<ID, Entity> {
     ImmediateDumpStrategy(DbOperator<ID, Entity> dbOperator) {
         super(dbOperator);
@@ -63,7 +95,13 @@ final class ImmediateDumpStrategy<ID extends Comparable<ID>, Entity extends Abst
 
     @Override
     public void update(UpdateInfo<ID, Entity> info) {
-        dbOperator.update(info);
+        try {
+            dbOperator.update(info);
+        } catch (Exception e) {
+            log.error("数据入库异常", e);
+            throw new ManasluException(e);
+        }
+
     }
 
     @Override
@@ -73,7 +111,12 @@ final class ImmediateDumpStrategy<ID extends Comparable<ID>, Entity extends Abst
 
     @Override
     public void delete(ID id) {
-        dbOperator.delete(id);
+        try {
+            dbOperator.delete(id);
+        } catch (Exception e) {
+            log.error("数据入库异常", e);
+            throw new ManasluException(e);
+        }
     }
 }
 
@@ -88,6 +131,8 @@ sealed abstract class DelayDumpStrategy<ID extends Comparable<ID>, Entity extend
 
     protected DelayDumpStrategy(DbOperator<ID, Entity> dbOperator) {
         super(dbOperator);
+        // 系统结束时落库
+        Runtime.getRuntime().addShutdownHook(new Thread(this::flushAll));
     }
 
     @Override
@@ -109,12 +154,19 @@ sealed abstract class DelayDumpStrategy<ID extends Comparable<ID>, Entity extend
     @Override
     public void flush(ID id) {
         var writeLock = lock.writeLock();
+        UpdateInfo<ID, Entity> remove = null;
         try {
-            var remove = cache.remove(id);
+            remove = cache.remove(id);
             if (remove == null) {
                 return;
             }
             dbOperator.update(remove);
+        } catch (Exception e) {
+            if (remove != null) {
+                cache.put(id, remove);
+            }
+            log.error("数据入库异常", e);
+            throw new ManasluException(e);
         } finally {
             lock.unlockWrite(writeLock);
         }
@@ -156,7 +208,7 @@ sealed class IntervalDumpStrategy<ID extends Comparable<ID>, Entity extends Abst
      * @param intervalTimeMs     间隔时间
      * @param threadPoolExecutor 定时器
      */
-    IntervalDumpStrategy(long intervalTimeMs, DbOperator<ID, Entity> dbOperator, ScheduledThreadPoolExecutor threadPoolExecutor) {
+    IntervalDumpStrategy(long intervalTimeMs, DbOperator<ID, Entity> dbOperator, ScheduledExecutorService threadPoolExecutor) {
         super(dbOperator);
         threadPoolExecutor.schedule(this::flushAll, intervalTimeMs, TimeUnit.MILLISECONDS);
     }
@@ -175,7 +227,7 @@ final class CountIntervalDumpStrategy<ID extends Comparable<ID>, Entity extends 
     /**
      * @param maxSize 最大数量
      */
-    CountIntervalDumpStrategy(long intervalTimeMs, int maxSize, DbOperator<ID, Entity> dbOperator, ScheduledThreadPoolExecutor threadPoolExecutor) {
+    CountIntervalDumpStrategy(long intervalTimeMs, int maxSize, DbOperator<ID, Entity> dbOperator, ScheduledExecutorService threadPoolExecutor) {
         super(intervalTimeMs, dbOperator, threadPoolExecutor);
         this.maxSize = maxSize;
     }

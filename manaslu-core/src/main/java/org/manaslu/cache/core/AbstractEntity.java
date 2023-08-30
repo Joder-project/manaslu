@@ -2,8 +2,8 @@ package org.manaslu.cache.core;
 
 public abstract class AbstractEntity<ID extends Comparable<ID>> {
 
-    CacheStrategy<ID, ? extends AbstractEntity<ID>> cacheStrategy;
-    DumpStrategy<ID, ? extends AbstractEntity<ID>> dumpStrategy;
+    protected CacheStrategy<ID, ? extends AbstractEntity<ID>> cacheStrategy;
+    protected DumpStrategy<ID, ? extends AbstractEntity<ID>> dumpStrategy;
 
     /**
      * 主键

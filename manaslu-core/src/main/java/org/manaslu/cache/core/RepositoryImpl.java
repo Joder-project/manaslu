@@ -80,17 +80,18 @@ final class RepositoryImpl<ID extends Comparable<ID>, E extends AbstractEntity<I
 
     @Override
     public E create(@Nonnull E entity) {
-        var e = entityEnhanceCreator.create(entity, cacheStrategy, dumpStrategy);
-        if (cacheStrategy.get(entity.id()).isPresent()) {
-            throw new IllegalStateException("重复ID");
-        }
         var writeLock = lock.writeLock();
+        E e;
         try {
-            cacheStrategy.put(e);
             // 新增时直接入库
-            dumpStrategy.insert(e);
+            var id = dumpStrategy.insert(entity);
+            if (entity.id() == null && id.isPresent()) {
+                e = entityEnhanceCreator.create(id.get(), entity, cacheStrategy, dumpStrategy);
+            } else {
+                e = entityEnhanceCreator.create(entity, cacheStrategy, dumpStrategy);
+            }
+            cacheStrategy.put(e);
         } catch (Exception ex) {
-            cacheStrategy.delete(e.id());
             log.error("新增数据错误", ex);
             throw new ManasluException(ex);
         } finally {
