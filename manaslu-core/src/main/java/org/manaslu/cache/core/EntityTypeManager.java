@@ -37,6 +37,15 @@ public class EntityTypeManager {
         return (E) entityInfo.newObject(entity, id);
     }
 
+    @SuppressWarnings("unchecked")
+    <ID extends Comparable<ID>, E extends AbstractEntity<ID>> Class<E> getProxyClass(Class<E> rawClass) {
+        if (!registerTypes.containsKey(rawClass)) {
+            throw new IllegalArgumentException("出现为注册类型" + rawClass.getName());
+        }
+        var entityInfo = registerTypes.get(rawClass);
+        return (Class<E>) entityInfo.proxyClass;
+    }
+
     /**
      * 获取类信息
      */
@@ -71,14 +80,14 @@ public class EntityTypeManager {
         final List<Field> properties;
 
         EntityInfo(Class<? extends AbstractEntity<?>> clazz) {
-            var annotation = clazz.getAnnotation(Entity.class);
+            this.proxyClass = buildProxy(clazz);
+            var annotation = proxyClass.getAnnotation(Entity.class);
             if (annotation == null) {
                 throw new IllegalStateException("没有定义@Entity注解");
             }
             this.rawClass = clazz;
             this.database = "".equals(annotation.database()) ? null : annotation.database();
             this.table = "".equals(annotation.database()) ? clazz.getSimpleName() : annotation.database();
-            this.proxyClass = buildProxy(clazz);
             try {
                 this.constructor = this.proxyClass.getDeclaredConstructor(clazz);
             } catch (NoSuchMethodException ex) {

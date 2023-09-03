@@ -10,6 +10,10 @@ final class EntityEnhanceCreator {
         this.entityTypeManager = entityTypeManager;
     }
 
+    <ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> Class<Entity> getProxyClass(Class<Entity> rawClass) {
+        return entityTypeManager.getProxyClass(rawClass);
+    }
+
     /**
      * 创建增强实体
      */

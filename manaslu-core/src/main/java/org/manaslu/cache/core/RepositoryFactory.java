@@ -58,7 +58,8 @@ public class RepositoryFactory {
     }
 
     <ID extends Comparable<ID>, E extends AbstractEntity<ID>> Repository<ID, E> createRepository(Class<E> entityType) {
-        var annotation = Objects.requireNonNull(entityType.getAnnotation(Entity.class));
+        var proxyClass = entityEnhanceCreator.getProxyClass(entityType);
+        var annotation = Objects.requireNonNull(proxyClass.getAnnotation(Entity.class));
         var cache = annotation.cacheStrategy();
         var dump = annotation.dumpStrategy();
         CacheStrategy<ID, E> cacheStrategy;

@@ -3,7 +3,6 @@ package org.manaslu.cache.core;
 import com.google.auto.service.AutoService;
 import org.manaslu.cache.core.annotations.Enhance;
 import org.manaslu.cache.core.annotations.EnhanceEntity;
-import org.manaslu.cache.core.annotations.Entity;
 import org.manaslu.cache.core.annotations.Id;
 
 import javax.annotation.processing.*;
@@ -90,13 +89,16 @@ public class EnhancedEntityProcessor extends AbstractProcessor {
     private String buildAnnotation(Element element, String prefix) {
         List<? extends AnnotationMirror> annotationMirrors = element.getAnnotationMirrors()
                 .stream()
-                .filter(e -> !e.getAnnotationType().toString().equals(EnhanceEntity.class.getCanonicalName()))
                 .filter(e -> !e.getAnnotationType().toString().equals(Enhance.class.getCanonicalName()))
                 .toList();
         var sb = new StringBuilder();
         for (AnnotationMirror annotationMirror : annotationMirrors) {
             var elementValues = annotationMirror.getElementValues();
-            sb.append(prefix).append("@").append(annotationMirror.getAnnotationType().toString()).append("(");
+            if (annotationMirror.getAnnotationType().toString().equals(EnhanceEntity.class.getCanonicalName())) {
+                sb.append(prefix).append("@Entity").append("(");
+            } else {
+                sb.append(prefix).append("@").append(annotationMirror.getAnnotationType().toString()).append("(");
+            }
             var list = elementValues.keySet().stream().toList();
             for (int i = 0; i < list.size(); i++) {
                 sb.append(list.get(i).getSimpleName()).append(" = ").append(elementValues.get(list.get(i)));
@@ -140,7 +142,7 @@ public class EnhancedEntityProcessor extends AbstractProcessor {
     private boolean classHasEntity(Element element, Map<String, String> attributes) {
         var annotation = element.getAnnotationMirrors()
                 .stream()
-                .filter(e -> e.getAnnotationType().toString().equals(Entity.class.getCanonicalName()))
+                .filter(e -> e.getAnnotationType().toString().equals(EnhanceEntity.class.getCanonicalName()))
                 .findFirst()
                 .orElse(null);
         if (annotation == null) {

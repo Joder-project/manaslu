@@ -4,14 +4,12 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.manaslu.cache.core.annotations.Enhance;
 import org.manaslu.cache.core.annotations.EnhanceEntity;
-import org.manaslu.cache.core.annotations.Entity;
 import org.manaslu.cache.core.annotations.Id;
 
 import javax.annotation.Nonnull;
 
 @EqualsAndHashCode(callSuper = true)
-@Entity(database = "aaa", table = "bbb")
-@EnhanceEntity
+@EnhanceEntity(database = "aaa", table = "bbb")
 @Data
 public class UserEntity extends AbstractEntity<Integer> {
 
