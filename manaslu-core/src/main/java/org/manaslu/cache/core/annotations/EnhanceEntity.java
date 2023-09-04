@@ -6,7 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 增强方法
+ * 实体
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)

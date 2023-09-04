@@ -5,6 +5,7 @@ import java.util.List;
 public class TestEntity {
 
     public static void main(String[] args) {
+        var subUserEntityClass = SubUserEntity.class;
         var userEntityClass = UserEntity.class;
         var raw = new UserEntity();
         var entityTypeManager = new EntityTypeManager();

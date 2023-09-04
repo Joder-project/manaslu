@@ -1,5 +1,7 @@
 package org.manaslu.cache.mysql;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.manaslu.cache.core.AbstractEntity;
 import org.manaslu.cache.core.DbOperator;
@@ -18,7 +20,7 @@ import java.util.Optional;
 
 @Slf4j
 public class MysqlDbOperator<ID extends Comparable<ID>, Entity extends AbstractEntity<ID>> implements DbOperator<ID, Entity> {
-
+    static final ObjectMapper MAPPER = new ObjectMapper();
     private final MysqlConnections connections;
     private final MysqlEntityInfo entityInfo;
     private final String tableName;
@@ -83,7 +85,12 @@ public class MysqlDbOperator<ID extends Comparable<ID>, Entity extends AbstractE
                 var key = entityInfo.propertyTypes.get(i).name;
                 if (entityInfo.entityTypeInfo.normalFields().containsKey(key)) {
                     var field = entityInfo.entityTypeInfo.normalFields().get(key);
-                    preparedStatement.setObject(i + 1, field.get(entity));
+                    var object = field.get(entity);
+                    if (entityInfo.entityTypeInfo.subEntities().containsKey(field.getType())) {
+                        preparedStatement.setObject(i + 1, object == null ? "" : MAPPER.writeValueAsString(object));
+                    } else {
+                        preparedStatement.setObject(i + 1, object);
+                    }
                 } else if ("id".equals(key)) {
                     preparedStatement.setObject(i + 1, entity.id());
                 }
@@ -98,6 +105,8 @@ public class MysqlDbOperator<ID extends Comparable<ID>, Entity extends AbstractE
             throw new ManasluException("执行SQL失败", e);
         } catch (IllegalAccessException e) {
             throw new ManasluException("获取属性失败", e);
+        } catch (Exception e) {
+            throw new ManasluException("出现异常", e);
         } finally {
             log.debug("insert SQL = {}, entity = {}", insertSql, entity);
         }
@@ -133,7 +142,13 @@ public class MysqlDbOperator<ID extends Comparable<ID>, Entity extends AbstractE
                 }
                 if (entityInfo.entityTypeInfo.normalFields().containsKey(key)) {
                     var field = entityInfo.entityTypeInfo.normalFields().get(key);
-                    preparedStatement.setObject(i++, field.get(entity.entity()));
+                    var object = field.get(entity.entity());
+                    if (entityInfo.entityTypeInfo.subEntities().containsKey(field.getType())) {
+                        preparedStatement.setObject(i, object == null ? "" : MAPPER.writeValueAsString(object));
+                    } else {
+                        preparedStatement.setObject(i, object);
+                    }
+                    i++;
                 }
             }
             preparedStatement.setObject(i, entity.entity().id());
@@ -142,6 +157,8 @@ public class MysqlDbOperator<ID extends Comparable<ID>, Entity extends AbstractE
             throw new ManasluException("执行SQL失败", e);
         } catch (IllegalAccessException e) {
             throw new ManasluException("获取属性失败", e);
+        } catch (Exception e) {
+            throw new ManasluException("出现异常", e);
         } finally {
             log.debug("update SQL = {}, entity = {}", sql, entity.entity());
         }
@@ -189,12 +206,38 @@ public class MysqlDbOperator<ID extends Comparable<ID>, Entity extends AbstractE
         }
         entityInfo.entityTypeInfo.normalFields().forEach((k, v) -> {
             try {
-                v.set(entity, resultSet.getObject(k, v.getType()));
+                if (entityInfo.entityTypeInfo.subEntities().containsKey(v.getType())) {
+                    var json = resultSet.getString(k);
+                    if (json == null || json.isEmpty()) {
+                        v.set(entity, null);
+                        return;
+                    }
+                    v.set(entity, toObject(MAPPER.readTree(json), v.getType()));
+                } else {
+                    v.set(entity, resultSet.getObject(k, v.getType()));
+                }
             } catch (Exception ex) {
                 throw new ManasluException("设置属性失败", ex);
             }
         });
         return entity;
+    }
+
+    Object toObject(JsonNode document, Class<?> clazz) throws Exception {
+        var info = entityInfo.entityTypeInfo.subEntities().get(clazz);
+        Object object = clazz.getDeclaredConstructor().newInstance();
+        info.fields().forEach((k, v) -> {
+            try {
+                if (entityInfo.entityTypeInfo.subEntities().containsKey(v.getType())) {
+                    v.set(object, toObject(document.get(k), v.getType()));
+                } else {
+                    v.set(object, MAPPER.readValue(document.get(k).toString(), v.getType()));
+                }
+            } catch (Exception ex) {
+                throw new ManasluException("设置属性失败", ex);
+            }
+        });
+        return object;
     }
 
     static class MysqlEntityInfo {

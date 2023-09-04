@@ -14,4 +14,15 @@ public abstract class AbstractEntity<ID extends Comparable<ID>> {
         this.cacheStrategy = cacheStrategy;
         this.dumpStrategy = dumpStrategy;
     }
+
+    public DumpStrategy<ID, ? extends AbstractEntity<ID>> dumpStrategy() {
+        return dumpStrategy;
+    }
+
+    /**
+     * 构造完成后
+     */
+    public void postLoad() {
+
+    }
 }

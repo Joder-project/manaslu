@@ -73,12 +73,37 @@ public final class MongoDbOperator<ID extends Comparable<ID>, Entity extends Abs
         }
         entityTypeInfo.entityTypeInfo.normalFields().forEach((k, v) -> {
             try {
-                v.set(entity, document.get(k, v.getType()));
+                if (entityTypeInfo.entityTypeInfo().subEntities().containsKey(v.getType())) {
+                    v.set(entity, toObject(document.get(k, Document.class), v.getType()));
+                } else {
+                    v.set(entity, document.get(k, v.getType()));
+                }
             } catch (Exception ex) {
                 throw new ManasluException("设置属性失败", ex);
             }
         });
+        entity.postLoad();
         return entity;
+    }
+
+    Object toObject(Document document, Class<?> clazz) throws Exception {
+        if (document == null) {
+            return null;
+        }
+        var info = entityTypeInfo.entityTypeInfo().subEntities().get(clazz);
+        Object object = clazz.getDeclaredConstructor().newInstance();
+        info.fields().forEach((k, v) -> {
+            try {
+                if (entityTypeInfo.entityTypeInfo().subEntities().containsKey(v.getType())) {
+                    v.set(object, toObject(document.get(k, Document.class), v.getType()));
+                } else {
+                    v.set(object, document.get(k, v.getType()));
+                }
+            } catch (Exception ex) {
+                throw new ManasluException("设置属性失败", ex);
+            }
+        });
+        return object;
     }
 
     Document toDocument(ID id, Entity entity) {
@@ -86,9 +111,33 @@ public final class MongoDbOperator<ID extends Comparable<ID>, Entity extends Abs
         document.put("_id", id);
         entityTypeInfo.entityTypeInfo.normalFields().forEach((k, v) -> {
             try {
-                document.put(k, v.get(entity));
+                if (entityTypeInfo.entityTypeInfo().subEntities().containsKey(v.getType())) {
+                    document.put(k, toDocument(v.get(entity), v.getType()));
+                } else {
+                    document.put(k, v.get(entity));
+                }
             } catch (Exception ex) {
                 throw new ManasluException("获取属性失败", ex);
+            }
+        });
+        return document;
+    }
+
+    Document toDocument(Object object, Class<?> clazz) {
+        var info = entityTypeInfo.entityTypeInfo().subEntities().get(clazz);
+        var document = new Document();
+        if (object == null) {
+            return document;
+        }
+        info.fields().forEach((k, v) -> {
+            try {
+                if (entityTypeInfo.entityTypeInfo().subEntities().containsKey(v.getType())) {
+                    document.put(k, toDocument(v.get(object), v.getType()));
+                } else {
+                    document.put(k, v.get(object));
+                }
+            } catch (Exception ex) {
+                throw new ManasluException("设置属性失败", ex);
             }
         });
         return document;
@@ -99,7 +148,11 @@ public final class MongoDbOperator<ID extends Comparable<ID>, Entity extends Abs
         entityTypeInfo.entityTypeInfo.normalFields().forEach((k, v) -> {
             if (info.updateProperties().contains(k)) {
                 try {
-                    document.put(k, v.get(info.entity()));
+                    if (entityTypeInfo.entityTypeInfo().subEntities().containsKey(v.getType())) {
+                        document.put(k, toDocument(v.get(info.entity()), v.getType()));
+                    } else {
+                        document.put(k, v.get(info.entity()));
+                    }
                 } catch (Exception ex) {
                     throw new ManasluException("获取属性失败", ex);
                 }
