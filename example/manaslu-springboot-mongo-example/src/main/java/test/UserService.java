@@ -17,19 +17,22 @@ public class UserService {
 
     @PostConstruct
     void init() {
-        var user = new User();
-        user = userRepository.create(user);
-        user.update("Hello");
-        var time = System.nanoTime();
-        for (int i = 0; i < 1000; i++) {
-            assert "Hello".equals(userRepository.load(user.id()).map(User::getName).orElse(null));
-        }
-        log.info("time: {} ns", System.nanoTime() - time);
+//        var user = new User();
+//        user = userRepository.create(user);
+//        user.update("Hello");
+//        var time = System.nanoTime();
+//        for (int i = 0; i < 1000; i++) {
+//            assert "Hello".equals(userRepository.load(user.id()).map(User::getName).orElse(null));
+//        }
+////        user.getSubUser().change("111111");
+//        user.getSubUser().getSubUser().change("1111");
+        var user = userRepository.load(new ObjectId("64f6a542265af70acc823f48")).orElseThrow();
+//        log.info("time: {} ns", System.nanoTime() - time);
         log.info("user id: {}", user.id());
     }
 
     @PreDestroy
     void destroy() {
-        userRepository.listFromCache().forEach(user -> userRepository.delete(user.id()));
+//        userRepository.listFromCache().forEach(user -> userRepository.delete(user.id()));
     }
 }

@@ -225,7 +225,9 @@ public class MysqlDbOperator<ID extends Comparable<ID>, Entity extends AbstractE
 
     Object toObject(JsonNode document, Class<?> clazz) throws Exception {
         var info = entityInfo.entityTypeInfo.subEntities().get(clazz);
-        Object object = clazz.getDeclaredConstructor().newInstance();
+        var constructor = clazz.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        Object object = constructor.newInstance();
         info.fields().forEach((k, v) -> {
             try {
                 if (entityInfo.entityTypeInfo.subEntities().containsKey(v.getType())) {

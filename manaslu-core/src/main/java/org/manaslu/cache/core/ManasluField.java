@@ -50,10 +50,11 @@ class ProxyField implements ManasluField {
 
     private final Field rawObjectField;
 
-    ProxyField(Field rawField, Class<?> proxyClass) {
+
+    ProxyField(Field rawField, Class<?> parentProxyClass) {
         this.rawField = rawField;
         try {
-            this.rawObjectField = proxyClass.getDeclaredField("_raw");
+            this.rawObjectField = parentProxyClass.getDeclaredField("_raw");
         } catch (Exception ex) {
             throw new ManasluException("找不到字段_raw");
         }
@@ -71,7 +72,10 @@ class ProxyField implements ManasluField {
 
     @Override
     public Object get(Object target) throws Exception {
-        var object = rawObjectField.get(target);
+        Object object = target;
+        if (target.getClass().getName().endsWith("$Proxy")) {
+            object = rawObjectField.get(target);
+        }
         if (object == null) {
             return null;
         }
@@ -80,7 +84,10 @@ class ProxyField implements ManasluField {
 
     @Override
     public void set(Object target, Object value) throws Exception {
-        var object = rawObjectField.get(target);
+        Object object = target;
+        if (target.getClass().getName().endsWith("$Proxy")) {
+            object = rawObjectField.get(target);
+        }
         if (object == null) {
             return;
         }

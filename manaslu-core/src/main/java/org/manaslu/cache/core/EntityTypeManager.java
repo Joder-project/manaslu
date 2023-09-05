@@ -27,13 +27,12 @@ public class EntityTypeManager {
         this.registerTypes.putAll(map);
     }
 
-    Class<?> registerSubType(Class<?> clazz) {
+    void registerSubType(Class<?> clazz) {
         if (registerSubTypes.containsKey(clazz)) {
-            return registerSubTypes.get(clazz).proxyClass;
+            return;
         }
         var subEntityInfo = new SubEntityInfo(this, clazz);
         registerSubTypes.put(clazz, subEntityInfo);
-        return subEntityInfo.proxyClass;
     }
 
     /**
@@ -127,13 +126,14 @@ public class EntityTypeManager {
                             throw new IllegalStateException("重复主键");
                         }
                     } else {
-                        if (declaredField.getType().isAssignableFrom(SubEntity.class)) {
-                            Class<?> proxy = manager.registerSubType(declaredField.getType());
-                            var proxyField = new ProxyField(declaredField, proxy);
+                        var proxyField = new ProxyField(declaredField, proxyClass);
+                        if (declaredField.getType().isAnnotationPresent(SubEntity.class)) {
+                            manager.registerSubType(declaredField.getType());
+
                             enhancedFields.add(proxyField);
                             fields.add(proxyField);
                         } else {
-                            fields.add(new NormalField(declaredField));
+                            fields.add(proxyField);
                         }
                     }
                 }
@@ -157,6 +157,9 @@ public class EntityTypeManager {
 
 
         AbstractEntity<?> newObject(EntityTypeManager manager, AbstractEntity<?> old, Object id) {
+            if (old == null) {
+                throw new IllegalStateException("增强对象不能为空" + proxyClass.getName());
+            }
             try {
                 var nw = constructor.newInstance(old);
                 // 如果没有ID, 则创建ID
@@ -169,7 +172,7 @@ public class EntityTypeManager {
                 if (!enhancedProperties.isEmpty()) {
                     for (var enhancedProperty : enhancedProperties) {
                         var subEntityInfo = manager.registerSubTypes.get(enhancedProperty.getType());
-                        enhancedProperty.set(nw, subEntityInfo.newObject(manager, old, enhancedProperty.get(old),
+                        enhancedProperty.set(old, subEntityInfo.newObject(manager, nw, enhancedProperty.get(old),
                                 enhancedProperty.getName()));
                     }
                 }
@@ -215,13 +218,13 @@ public class EntityTypeManager {
                         throw new IllegalStateException("禁止使用非private的字段" + clazz.getName());
                     }
                     declaredField.setAccessible(true);
-                    if (declaredField.getType().isAssignableFrom(SubEntity.class)) {
-                        Class<?> proxy = manager.registerSubType(declaredField.getType());
-                        var proxyField = new ProxyField(declaredField, proxy);
+                    var proxyField = new ProxyField(declaredField, proxyClass);
+                    if (declaredField.getType().isAnnotationPresent(SubEntity.class)) {
+                        manager.registerSubType(declaredField.getType());
                         enhancedFields.add(proxyField);
                         fields.add(proxyField);
                     } else {
-                        fields.add(new NormalField(declaredField));
+                        fields.add(proxyField);
                     }
                 }
             }
@@ -241,12 +244,15 @@ public class EntityTypeManager {
 
 
         Object newObject(EntityTypeManager manager, AbstractEntity<?> parent, Object old, String fieldName) {
+            if (old == null) {
+                throw new IllegalStateException("增强对象字段不能为空" + fieldName + ", " + proxyClass.getName());
+            }
             try {
                 var nw = constructor.newInstance(parent, old, fieldName);
                 if (!enhancedProperties.isEmpty()) {
                     for (var enhancedProperty : enhancedProperties) {
                         var subEntityInfo = manager.registerSubTypes.get(enhancedProperty.getType());
-                        enhancedProperty.set(nw, subEntityInfo.newObject(manager, parent, enhancedProperty.get(old),
+                        enhancedProperty.set(old, subEntityInfo.newObject(manager, parent, enhancedProperty.get(old),
                                 enhancedProperty.getName()));
                     }
                 }

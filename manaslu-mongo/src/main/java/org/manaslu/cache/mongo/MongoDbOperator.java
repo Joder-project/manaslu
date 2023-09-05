@@ -91,7 +91,9 @@ public final class MongoDbOperator<ID extends Comparable<ID>, Entity extends Abs
             return null;
         }
         var info = entityTypeInfo.entityTypeInfo().subEntities().get(clazz);
-        Object object = clazz.getDeclaredConstructor().newInstance();
+        var constructor = clazz.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        Object object = constructor.newInstance();
         info.fields().forEach((k, v) -> {
             try {
                 if (entityTypeInfo.entityTypeInfo().subEntities().containsKey(v.getType())) {
