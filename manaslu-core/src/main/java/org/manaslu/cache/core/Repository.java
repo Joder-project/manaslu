@@ -44,12 +44,12 @@ public sealed interface Repository<ID extends Comparable<ID>, E extends Abstract
     /**
      * 删除数据
      */
-    boolean delete(ID id);
+    void delete(ID id);
 
     /**
      * 只删除缓存数据，删除前会更新到数据库
      */
-    boolean deleteOnlyCache(ID id);
+    void deleteOnlyCache(ID id);
 
     /**
      * 立即入库

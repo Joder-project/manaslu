@@ -102,33 +102,35 @@ final class RepositoryImpl<ID extends Comparable<ID>, E extends AbstractEntity<I
     }
 
     @Override
-    public boolean delete(ID id) {
-        var writeLock = lock.writeLock();
-        try {
-            cacheStrategy.delete(id);
-            // 删除时直接入库
-            dumpStrategy.delete(id);
-        } catch (Exception ex) {
-            log.error("删除数据错误", ex);
-            throw new ManasluException(ex);
-        } finally {
-            lock.unlockWrite(writeLock);
-        }
-        return false;
+    public void delete(ID id) {
+        Thread.startVirtualThread(() -> {
+            var writeLock = lock.writeLock();
+            try {
+                cacheStrategy.delete(id);
+                // 删除时直接入库
+                dumpStrategy.delete(id);
+            } catch (Exception ex) {
+                log.error("删除数据错误", ex);
+                throw new ManasluException(ex);
+            } finally {
+                lock.unlockWrite(writeLock);
+            }
+        });
     }
 
     @Override
-    public boolean deleteOnlyCache(ID id) {
-        var writeLock = lock.writeLock();
-        try {
-            // 先入库
-            dumpStrategy.flush(id);
-            // 在删除
-            cacheStrategy.delete(id);
-        } finally {
-            lock.unlockWrite(writeLock);
-        }
-        return false;
+    public void deleteOnlyCache(ID id) {
+        Thread.startVirtualThread(() -> {
+            var writeLock = lock.writeLock();
+            try {
+                // 先入库
+                dumpStrategy.flush(id);
+                // 在删除
+                cacheStrategy.delete(id);
+            } finally {
+                lock.unlockWrite(writeLock);
+            }
+        });
     }
 
     @Override

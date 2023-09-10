@@ -16,7 +16,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @SupportedAnnotationTypes({"org.manaslu.cache.core.annotations.EnhanceEntity", "org.manaslu.cache.core.annotations.SubEnhanceEntity"})
-@SupportedSourceVersion(SourceVersion.RELEASE_17)
+@SupportedSourceVersion(SourceVersion.RELEASE_19)
 @AutoService(Processor.class)
 public class EnhancedEntityProcessor extends AbstractProcessor {
     private Filer filer;
