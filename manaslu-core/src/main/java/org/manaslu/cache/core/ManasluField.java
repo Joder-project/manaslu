@@ -1,7 +1,5 @@
 package org.manaslu.cache.core;
 
-import org.manaslu.cache.core.exception.ManasluException;
-
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Field;
@@ -55,14 +53,10 @@ class ProxyField implements ManasluField {
     private final VarHandle rawObjectField;
 
 
-    ProxyField(MethodHandles.Lookup lookup, Field rawField, Class<?> rawClass, Class<?> parentProxyClass) throws Exception {
+    ProxyField(MethodHandles.Lookup lookup, Field rawField, VarHandle rawObjectField) throws Exception {
         this.rawField = lookup.unreflectVarHandle(rawField);
         this.name = rawField.getName();
-        try {
-            this.rawObjectField = lookup.findVarHandle(parentProxyClass, "_raw", rawClass);
-        } catch (Exception ex) {
-            throw new ManasluException("找不到字段_raw");
-        }
+        this.rawObjectField = rawObjectField;
     }
 
     @Override

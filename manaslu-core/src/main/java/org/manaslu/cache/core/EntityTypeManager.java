@@ -103,8 +103,10 @@ public class EntityTypeManager {
         final List<ManasluField> properties;
 
         final List<ManasluField> enhancedProperties;
+        final MethodHandles.Lookup selfLookup;
 
         EntityInfo(EntityTypeManager manager, Class<? extends AbstractEntity<?>> clazz) throws Throwable {
+            this.selfLookup = MethodHandles.privateLookupIn(clazz, LOOKUP);
             this.proxyClass = buildProxy(clazz);
             var annotation = proxyClass.getAnnotation(Entity.class);
             if (annotation == null) {
@@ -130,12 +132,12 @@ public class EntityTypeManager {
                     declaredField.setAccessible(true);
                     if (declaredField.isAnnotationPresent(Id.class)) {
                         if (id == null) {
-                            id = new NormalField(LOOKUP, declaredField);
+                            id = new NormalField(selfLookup, declaredField);
                         } else {
                             throw new IllegalStateException("重复主键");
                         }
                     } else {
-                        var proxyField = new ProxyField(LOOKUP, declaredField, clazz, proxyClass);
+                        var proxyField = new ProxyField(selfLookup, declaredField, LOOKUP.findVarHandle(proxyClass, "_raw", clazz));
                         if (declaredField.getType().isAnnotationPresent(SubEntity.class)) {
                             manager.registerSubType(declaredField.getType());
 
@@ -204,8 +206,10 @@ public class EntityTypeManager {
          */
         final List<ManasluField> enhancedProperties;
         final List<ManasluField> properties;
+        final MethodHandles.Lookup selfLookup;
 
         SubEntityInfo(EntityTypeManager manager, Class<?> clazz) throws Throwable {
+            this.selfLookup = MethodHandles.privateLookupIn(clazz, LOOKUP);
             this.proxyClass = buildProxy(clazz);
             var annotation = proxyClass.getAnnotation(SubEntity.class);
             if (annotation == null) {
@@ -226,7 +230,7 @@ public class EntityTypeManager {
                         throw new IllegalStateException("禁止使用非private的字段" + clazz.getName());
                     }
                     declaredField.setAccessible(true);
-                    var proxyField = new ProxyField(LOOKUP, declaredField, clazz, proxyClass);
+                    var proxyField = new ProxyField(selfLookup, declaredField, LOOKUP.findVarHandle(proxyClass, "_raw", clazz));
                     if (declaredField.getType().isAnnotationPresent(SubEntity.class)) {
                         manager.registerSubType(declaredField.getType());
                         enhancedFields.add(proxyField);
@@ -244,7 +248,8 @@ public class EntityTypeManager {
         @SuppressWarnings("unchecked")
         <T> Class<T> buildProxy(Class<T> clazz) {
             try {
-                return (Class<T>) Class.forName(clazz.getName() + "$Proxy");
+
+                return (Class<T>) LOOKUP.findClass(clazz.getName() + "$Proxy");
             } catch (Exception ex) {
                 throw new IllegalStateException("buildProxy error", ex);
             }
