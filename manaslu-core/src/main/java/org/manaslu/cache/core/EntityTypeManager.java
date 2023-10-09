@@ -1,17 +1,23 @@
 package org.manaslu.cache.core;
 
+import lombok.extern.slf4j.Slf4j;
 import org.manaslu.cache.core.annotations.Entity;
 import org.manaslu.cache.core.annotations.Id;
 import org.manaslu.cache.core.annotations.SubEntity;
 
-import java.lang.reflect.Constructor;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class EntityTypeManager {
+
+    static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 
     private final Map<Class<?>, EntityInfo> registerTypes = new HashMap<>();
     private final Map<Class<?>, SubEntityInfo> registerSubTypes = new HashMap<>();
@@ -22,7 +28,11 @@ public class EntityTypeManager {
             if (map.containsKey(clazz)) {
                 throw new IllegalStateException("出现重复类型" + clazz.getName());
             }
-            map.put(clazz, new EntityInfo(this, clazz));
+            try {
+                map.put(clazz, new EntityInfo(this, clazz));
+            } catch (Throwable ex) {
+                log.error("注册实体异常", ex);
+            }
         }
         this.registerTypes.putAll(map);
     }
@@ -31,8 +41,12 @@ public class EntityTypeManager {
         if (registerSubTypes.containsKey(clazz)) {
             return;
         }
-        var subEntityInfo = new SubEntityInfo(this, clazz);
-        registerSubTypes.put(clazz, subEntityInfo);
+        try {
+            var subEntityInfo = new SubEntityInfo(this, clazz);
+            registerSubTypes.put(clazz, subEntityInfo);
+        } catch (Throwable ex) {
+            log.error("注册实体异常", ex);
+        }
     }
 
     /**
@@ -64,13 +78,8 @@ public class EntityTypeManager {
             throw new IllegalArgumentException("出现为注册类型" + type.getName());
         }
         var entityInfo = registerTypes.get(type);
-        Map<Class<?>, EntityTypeInfo.SubEntityTypeInfo> subs = registerSubTypes.values().stream()
-                .collect(Collectors.toUnmodifiableMap(e -> e.rawClass, e -> new EntityTypeInfo.SubEntityTypeInfo(e.rawClass,
-                        e.properties.stream().collect(Collectors.toUnmodifiableMap(ManasluField::getName, f -> f))))
-                );
-        return new EntityTypeInfo(entityInfo.rawClass, entityInfo.database, entityInfo.table,
-                entityInfo.idField,
-                entityInfo.properties.stream().collect(Collectors.toUnmodifiableMap(ManasluField::getName, e -> e)), subs);
+        Map<Class<?>, EntityTypeInfo.SubEntityTypeInfo> subs = registerSubTypes.values().stream().collect(Collectors.toUnmodifiableMap(e -> e.rawClass, e -> new EntityTypeInfo.SubEntityTypeInfo(e.rawClass, e.properties.stream().collect(Collectors.toUnmodifiableMap(ManasluField::getName, f -> f)))));
+        return new EntityTypeInfo(entityInfo.rawClass, entityInfo.database, entityInfo.table, entityInfo.idField, entityInfo.properties.stream().collect(Collectors.toUnmodifiableMap(ManasluField::getName, e -> e)), subs);
     }
 
     /**
@@ -86,8 +95,8 @@ public class EntityTypeManager {
          * 只做对原始类进行包装工作，所以不能对代理类进行字段修改
          */
         final Class<? extends AbstractEntity<?>> proxyClass;
-        final Constructor<? extends AbstractEntity<?>> constructor;
-        final Field idField;
+        final MethodHandle constructor;
+        final ManasluField idField;
         /**
          * 数据库字段
          */
@@ -95,7 +104,7 @@ public class EntityTypeManager {
 
         final List<ManasluField> enhancedProperties;
 
-        EntityInfo(EntityTypeManager manager, Class<? extends AbstractEntity<?>> clazz) {
+        EntityInfo(EntityTypeManager manager, Class<? extends AbstractEntity<?>> clazz) throws Exception {
             this.proxyClass = buildProxy(clazz);
             var annotation = proxyClass.getAnnotation(Entity.class);
             if (annotation == null) {
@@ -105,13 +114,13 @@ public class EntityTypeManager {
             this.database = "".equals(annotation.database()) ? null : annotation.database();
             this.table = "".equals(annotation.database()) ? clazz.getSimpleName() : annotation.database();
             try {
-                this.constructor = this.proxyClass.getDeclaredConstructor(clazz);
-            } catch (NoSuchMethodException ex) {
+                this.constructor = LOOKUP.findConstructor(this.proxyClass, MethodType.methodType(void.class, clazz));
+            } catch (IllegalAccessException | NoSuchMethodException ex) {
                 throw new UndeclaredThrowableException(ex);
             }
             var fields = new ArrayList<ManasluField>();
             var enhancedFields = new ArrayList<ManasluField>();
-            Field id = null;
+            ManasluField id = null;
             for (Field declaredField : clazz.getDeclaredFields()) {
                 var modifiers = declaredField.getModifiers();
                 if (!Modifier.isFinal(modifiers) && !Modifier.isTransient(modifiers) && !Modifier.isStatic(modifiers)) {
@@ -121,12 +130,12 @@ public class EntityTypeManager {
                     declaredField.setAccessible(true);
                     if (declaredField.isAnnotationPresent(Id.class)) {
                         if (id == null) {
-                            id = declaredField;
+                            id = new NormalField(LOOKUP.findVarHandle(clazz, declaredField.getName(), declaredField.getType()), declaredField.getName());
                         } else {
                             throw new IllegalStateException("重复主键");
                         }
                     } else {
-                        var proxyField = new ProxyField(declaredField, proxyClass);
+                        var proxyField = new ProxyField(LOOKUP, LOOKUP.findVarHandle(clazz, declaredField.getName(), declaredField.getType()), declaredField.getName(), clazz, proxyClass);
                         if (declaredField.getType().isAnnotationPresent(SubEntity.class)) {
                             manager.registerSubType(declaredField.getType());
 
@@ -161,7 +170,7 @@ public class EntityTypeManager {
                 throw new IllegalStateException("增强对象不能为空" + proxyClass.getName());
             }
             try {
-                var nw = constructor.newInstance(old);
+                var nw = (AbstractEntity<?>) constructor.invoke(old);
                 // 如果没有ID, 则创建ID
                 if (old.id() == null) {
                     if (id == null) {
@@ -172,12 +181,11 @@ public class EntityTypeManager {
                 if (!enhancedProperties.isEmpty()) {
                     for (var enhancedProperty : enhancedProperties) {
                         var subEntityInfo = manager.registerSubTypes.get(enhancedProperty.getType());
-                        enhancedProperty.set(old, subEntityInfo.newObject(manager, nw, enhancedProperty.get(old),
-                                enhancedProperty.getName()));
+                        enhancedProperty.set(old, subEntityInfo.newObject(manager, nw, enhancedProperty.get(old), enhancedProperty.getName()));
                     }
                 }
                 return nw;
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 throw new IllegalStateException("创建增强对象失败", ex);
             }
         }
@@ -190,14 +198,14 @@ public class EntityTypeManager {
          * 只做对原始类进行包装工作，所以不能对代理类进行字段修改
          */
         final Class<?> proxyClass;
-        final Constructor<?> constructor;
+        final MethodHandle constructor;
         /**
          * 内部增强字段
          */
         final List<ManasluField> enhancedProperties;
         final List<ManasluField> properties;
 
-        SubEntityInfo(EntityTypeManager manager, Class<?> clazz) {
+        SubEntityInfo(EntityTypeManager manager, Class<?> clazz) throws Throwable {
             this.proxyClass = buildProxy(clazz);
             var annotation = proxyClass.getAnnotation(SubEntity.class);
             if (annotation == null) {
@@ -205,8 +213,8 @@ public class EntityTypeManager {
             }
             this.rawClass = clazz;
             try {
-                this.constructor = this.proxyClass.getDeclaredConstructor(AbstractEntity.class, clazz, String.class);
-            } catch (NoSuchMethodException ex) {
+                this.constructor = LOOKUP.findConstructor(this.proxyClass, MethodType.methodType(void.class, AbstractEntity.class, clazz, String.class));
+            } catch (NoSuchMethodException | IllegalAccessException ex) {
                 throw new UndeclaredThrowableException(ex);
             }
             var fields = new ArrayList<ManasluField>();
@@ -218,7 +226,7 @@ public class EntityTypeManager {
                         throw new IllegalStateException("禁止使用非private的字段" + clazz.getName());
                     }
                     declaredField.setAccessible(true);
-                    var proxyField = new ProxyField(declaredField, proxyClass);
+                    var proxyField = new ProxyField(LOOKUP, LOOKUP.findVarHandle(clazz, declaredField.getName(), declaredField.getType()), declaredField.getName(), clazz, proxyClass);
                     if (declaredField.getType().isAnnotationPresent(SubEntity.class)) {
                         manager.registerSubType(declaredField.getType());
                         enhancedFields.add(proxyField);
@@ -248,16 +256,15 @@ public class EntityTypeManager {
                 throw new IllegalStateException("增强对象字段不能为空" + fieldName + ", " + proxyClass.getName());
             }
             try {
-                var nw = constructor.newInstance(parent, old, fieldName);
+                var nw = constructor.invoke(parent, old, fieldName);
                 if (!enhancedProperties.isEmpty()) {
                     for (var enhancedProperty : enhancedProperties) {
                         var subEntityInfo = manager.registerSubTypes.get(enhancedProperty.getType());
-                        enhancedProperty.set(old, subEntityInfo.newObject(manager, parent, enhancedProperty.get(old),
-                                enhancedProperty.getName()));
+                        enhancedProperty.set(old, subEntityInfo.newObject(manager, parent, enhancedProperty.get(old), enhancedProperty.getName()));
                     }
                 }
                 return nw;
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 throw new IllegalStateException("创建增强对象失败", ex);
             }
         }

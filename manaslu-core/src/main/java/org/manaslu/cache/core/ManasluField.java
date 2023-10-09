@@ -2,7 +2,8 @@ package org.manaslu.cache.core;
 
 import org.manaslu.cache.core.exception.ManasluException;
 
-import java.lang.reflect.Field;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 
 /**
  * 字段包装
@@ -18,20 +19,22 @@ public interface ManasluField {
 }
 
 class NormalField implements ManasluField {
-    private final Field rawField;
+    private final VarHandle rawField;
+    private final String name;
 
-    NormalField(Field rawField) {
+    NormalField(VarHandle rawField, String name) {
         this.rawField = rawField;
+        this.name = name;
     }
 
     @Override
     public Class<?> getType() {
-        return rawField.getType();
+        return rawField.varType();
     }
 
     @Override
     public String getName() {
-        return rawField.getName();
+        return name;
     }
 
     @Override
@@ -46,15 +49,16 @@ class NormalField implements ManasluField {
 }
 
 class ProxyField implements ManasluField {
-    private final Field rawField;
+    private final VarHandle rawField;
+    private final String name;
+    private final VarHandle rawObjectField;
 
-    private final Field rawObjectField;
 
-
-    ProxyField(Field rawField, Class<?> parentProxyClass) {
+    ProxyField(MethodHandles.Lookup lookup, VarHandle rawField, String name, Class<?> rawClass, Class<?> parentProxyClass) {
         this.rawField = rawField;
+        this.name = name;
         try {
-            this.rawObjectField = parentProxyClass.getDeclaredField("_raw");
+            this.rawObjectField = lookup.findVarHandle(parentProxyClass, "_raw", rawClass);
         } catch (Exception ex) {
             throw new ManasluException("找不到字段_raw");
         }
@@ -62,12 +66,12 @@ class ProxyField implements ManasluField {
 
     @Override
     public Class<?> getType() {
-        return rawField.getType();
+        return rawField.varType();
     }
 
     @Override
     public String getName() {
-        return rawField.getName();
+        return name;
     }
 
     @Override
