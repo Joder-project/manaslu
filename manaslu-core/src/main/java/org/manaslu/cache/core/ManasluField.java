@@ -4,6 +4,7 @@ import org.manaslu.cache.core.exception.ManasluException;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.lang.reflect.Field;
 
 /**
  * 字段包装
@@ -22,9 +23,9 @@ class NormalField implements ManasluField {
     private final VarHandle rawField;
     private final String name;
 
-    NormalField(VarHandle rawField, String name) {
-        this.rawField = rawField;
-        this.name = name;
+    NormalField(MethodHandles.Lookup lookup, Field rawField) throws Throwable {
+        this.rawField = lookup.unreflectVarHandle(rawField);
+        this.name = rawField.getName();
     }
 
     @Override
@@ -54,9 +55,9 @@ class ProxyField implements ManasluField {
     private final VarHandle rawObjectField;
 
 
-    ProxyField(MethodHandles.Lookup lookup, VarHandle rawField, String name, Class<?> rawClass, Class<?> parentProxyClass) {
-        this.rawField = rawField;
-        this.name = name;
+    ProxyField(MethodHandles.Lookup lookup, Field rawField, Class<?> rawClass, Class<?> parentProxyClass) throws Exception {
+        this.rawField = lookup.unreflectVarHandle(rawField);
+        this.name = rawField.getName();
         try {
             this.rawObjectField = lookup.findVarHandle(parentProxyClass, "_raw", rawClass);
         } catch (Exception ex) {

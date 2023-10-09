@@ -104,7 +104,7 @@ public class EntityTypeManager {
 
         final List<ManasluField> enhancedProperties;
 
-        EntityInfo(EntityTypeManager manager, Class<? extends AbstractEntity<?>> clazz) throws Exception {
+        EntityInfo(EntityTypeManager manager, Class<? extends AbstractEntity<?>> clazz) throws Throwable {
             this.proxyClass = buildProxy(clazz);
             var annotation = proxyClass.getAnnotation(Entity.class);
             if (annotation == null) {
@@ -130,12 +130,12 @@ public class EntityTypeManager {
                     declaredField.setAccessible(true);
                     if (declaredField.isAnnotationPresent(Id.class)) {
                         if (id == null) {
-                            id = new NormalField(LOOKUP.findVarHandle(clazz, declaredField.getName(), declaredField.getType()), declaredField.getName());
+                            id = new NormalField(LOOKUP, declaredField);
                         } else {
                             throw new IllegalStateException("重复主键");
                         }
                     } else {
-                        var proxyField = new ProxyField(LOOKUP, LOOKUP.findVarHandle(clazz, declaredField.getName(), declaredField.getType()), declaredField.getName(), clazz, proxyClass);
+                        var proxyField = new ProxyField(LOOKUP, declaredField, clazz, proxyClass);
                         if (declaredField.getType().isAnnotationPresent(SubEntity.class)) {
                             manager.registerSubType(declaredField.getType());
 
@@ -226,7 +226,7 @@ public class EntityTypeManager {
                         throw new IllegalStateException("禁止使用非private的字段" + clazz.getName());
                     }
                     declaredField.setAccessible(true);
-                    var proxyField = new ProxyField(LOOKUP, LOOKUP.findVarHandle(clazz, declaredField.getName(), declaredField.getType()), declaredField.getName(), clazz, proxyClass);
+                    var proxyField = new ProxyField(LOOKUP, declaredField, clazz, proxyClass);
                     if (declaredField.getType().isAnnotationPresent(SubEntity.class)) {
                         manager.registerSubType(declaredField.getType());
                         enhancedFields.add(proxyField);
